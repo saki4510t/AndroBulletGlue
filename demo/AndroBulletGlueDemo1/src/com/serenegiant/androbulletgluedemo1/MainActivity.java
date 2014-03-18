@@ -37,7 +37,7 @@ public class MainActivity extends GLBulletActivity {
     
     private static final float START_POS_X = -ARRAY_SIZE_X * BOX_SIZE + BOX_SIZE;
     private static final float START_POS_Y = BOX_SIZE + BOX_SIZE * 2;
-    private static final float START_POS_Z = -ARRAY_SIZE_Y * BOX_SIZE * BOX_SIZE;
+    private static final float START_POS_Z = -ARRAY_SIZE_Y * BOX_SIZE + BOX_SIZE;
 
 	@Override
 	public PhysicsWorld initPhysics(GLBulletWorldSurfaceView view) {
