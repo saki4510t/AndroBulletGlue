@@ -3,8 +3,6 @@
  * Bullet Continuous Collision Detection and Physics Library for Android
  * Copyright(c) 2013,2014 saki t_saki@serenegiant.com
  * original Bullet version is 2.81-rev2613 => changed to 2.82-rev2704
- *
- * File name: GLDebugDrawer.cpp
  */
 /*
 Bullet Continuous Collision Detection and Physics Library
