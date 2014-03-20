@@ -206,6 +206,13 @@ public:
 	}
 
 	btVector3 getCameraPosition(void) { return m_cameraPosition; }
+	
+	void setCameraTargetPosition(btScalar x, btScalar y, btScalar z) {
+		m_cameraTargetPosition.setValue(x, y, z);
+	}
+	void setCameraTargetPosition(btVector3 &pos) {
+		m_cameraTargetPosition.setValue(pos.x(), pos.y(), pos.z());
+	}
 	btVector3 getCameraTargetPosition(void) { return m_cameraTargetPosition; }
 
 	btScalar getCameraHeight(void) { return m_cameraHeight; }
@@ -254,6 +261,7 @@ public:
 	virtual void resize(int w, int h);
 
 	virtual void renderFrame(void);
+	virtual void renderProfile(void);
 
 	void stepLeft(void);
 	void stepRight(void);

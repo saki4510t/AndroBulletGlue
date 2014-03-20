@@ -78,6 +78,7 @@ m_azi(0.f),
 m_cameraDistance(15.f),
 m_minCameraDistance(-BT_LARGE_FLOAT),
 m_maxCameraDistance(BT_LARGE_FLOAT),
+m_cameraHeight(0.f),	//
 m_cameraPosition(0.f, 0.f, 0.f),
 m_cameraTargetPosition(0.f, 0.f, 0.f),
 m_cameraMode(0),
@@ -110,6 +111,10 @@ m_autocam(false) {
 #ifndef BT_NO_PROFILE
 	m_profileIterator = CProfileManager::Get_Iterator();
 #endif //BT_NO_PROFILE
+#if LOCAL_DEBUG
+	LOGI("BulletWorldDraw::BulletWorldDraw");
+	LOGI("BulletWorldDraw::BulletWorldDraw:m_cameraTargetPosition=%f,%f,%f", m_cameraTargetPosition.getX(), m_cameraTargetPosition.getY(), m_cameraTargetPosition.getZ());
+#endif
 
 	m_shapeDrawer = new GLShapeDrawer();
 	m_shapeDrawer->enableTexture(true);
@@ -148,9 +153,6 @@ void BulletWorldDraw::toggleIdle() {
 void BulletWorldDraw::setTracking(
 	btRigidBody *trackingBody, btScalar minDistance, btScalar maxDistance) {
 
-#if LOCAL_DEBUG
-	LOGD("BulletWorldDraw::setTracking");
-#endif
 	if (trackingBody) {
 		m_trackingBody = trackingBody;
 		m_minCameraDistance = minDistance;
@@ -201,9 +203,8 @@ void BulletWorldDraw::lostGLContext() {
  */
 void BulletWorldDraw::resize(int width, int height) {
 #if LOCAL_DEBUG
-	LOGV("BulletWorldDraw#resize:");
+	LOGI("BulletWorldDraw#resize:");
 #endif
-
 	if (m_debugFont) {
 		m_debugFont->resetFont(width, height);
 	} else {
@@ -572,7 +573,7 @@ void BulletWorldDraw::removePickingConstraint() {
  * TOUCH_MOVE
  */
 bool BulletWorldDraw::touchMove(int screen_x, int screen_y) {
-
+	LOGI("touchMove:");
 	if (m_pickConstraint) {
 		// move the constraint pivot
 
@@ -645,6 +646,7 @@ bool BulletWorldDraw::touchMove(int screen_x, int screen_y) {
 
 			m_cameraTargetPosition += hor * dx * multiplierX;
 			m_cameraTargetPosition += vert * dy * multiplierY;
+			LOGI("touchMove:m_cameraTargetPosition=%f,%f,%f", m_cameraTargetPosition.getX(), m_cameraTargetPosition.getY(), m_cameraTargetPosition.getZ());
 		}
 
 		if (m_mouseButtons & (8) && m_mouseButtons & 1) {
@@ -728,7 +730,7 @@ void BulletWorldDraw::resetPerspectiveProjection(void)
 	glMatrixMode(GL_PROJECTION);
 	glPopMatrix();
 	glMatrixMode(GL_MODELVIEW);
-	updateCamera();
+//	updateCamera();	// comment out to improve performance
 }
 
 #ifndef BT_NO_PROFILE
@@ -810,7 +812,7 @@ void BulletWorldDraw::showProfileInfo(int &xOffset, int &yStart, int yIncr)
 
 void BulletWorldDraw::updateCamera(void) {
 #if LOCAL_DEBUG
-//	LOGD("BulletWorldDraw#updateCamera:");
+	LOGI("BulletWorldDraw#updateCamera:");
 #endif
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
@@ -821,23 +823,28 @@ void BulletWorldDraw::updateCamera(void) {
 		btTransform trackingWorldTrans;
 		m_trackingBody->getMotionState()->getWorldTransform(trackingWorldTrans);
 		m_cameraTargetPosition = trackingWorldTrans.getOrigin();
+		btVector3 cameraPos = m_cameraPosition;
 		// set cameraheight
 		if (m_cameraMode & CAMERAMODE_FORCE_ZAXIS_UP) {
-			m_cameraPosition[2] = (15.0 * m_cameraPosition[2] + m_cameraTargetPosition[2] + m_cameraHeight) / 16.0;
+			cameraPos[2] = (15.0 * cameraPos[2] + m_cameraTargetPosition[2] + m_cameraHeight) / 16.0;
 		} else {
-			m_cameraPosition[1] = (15.0 * m_cameraPosition[1] + m_cameraTargetPosition[1] + m_cameraHeight) / 16.0;
+			cameraPos[1] = (15.0 * cameraPos[1] + m_cameraTargetPosition[1] + m_cameraHeight) / 16.0;
 		}
 		// keep distance in a constant range between camera and point of regard
-		btVector3 camToObject = m_cameraTargetPosition - m_cameraPosition;
+		btVector3 camToObject = m_cameraTargetPosition - cameraPos;
 		float cameraDistance = camToObject.length();
-		float correctionFactor = 0.f;
-		if (cameraDistance < m_minCameraDistance) {
-			correctionFactor = 0.15 * (m_minCameraDistance - cameraDistance) / cameraDistance;
+		if (cameraDistance) {
+			float correctionFactor = 0.f;
+			if (cameraDistance < m_minCameraDistance) {
+				correctionFactor = 0.15 * (m_minCameraDistance - cameraDistance) / cameraDistance;
+			}
+			if (cameraDistance > m_maxCameraDistance) {
+				correctionFactor = 0.15 * (m_maxCameraDistance - cameraDistance) / cameraDistance;
+			}
+			cameraPos -= correctionFactor * camToObject;
+			if (LIKELY(!isnan(correctionFactor)))
+				m_cameraPosition = cameraPos;
 		}
-		if (cameraDistance > m_maxCameraDistance) {
-			correctionFactor = 0.15 * (m_maxCameraDistance - cameraDistance) / cameraDistance;
-		}
-		m_cameraPosition -= correctionFactor * camToObject;
 	} else {
 		// when not tracking... rotate and move depending on the camera rotation
 		btScalar rele = m_ele * btScalar(0.01745329251994329547);// rads per deg
@@ -1151,14 +1158,16 @@ void BulletWorldDraw::renderSoftbody(void) {
 void BulletWorldDraw::renderFrame(void)
 {
 #if LOCAL_DEBUG
-//	LOGD("BulletWorldDraw#renderFrame:");
+	LOGD("BulletWorldDraw#renderFrame:");
 #endif
 	prepareFrame();
 
 	updateCamera();
 
-	if (m_softBodyWorldInfo)
+	if (m_softBodyWorldInfo) {
+		glDisable(GL_CULL_FACE);
 		renderSoftbody();
+	}
 
 	if (LIKELY(m_dynamicsWorld)) {
 		if (m_drawShadows) {
@@ -1185,11 +1194,10 @@ void BulletWorldDraw::renderFrame(void)
 			glShadeModel(GL_SMOOTH);
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_LESS);
-			glEnable(GL_LIGHTING);
+//			glEnable(GL_LIGHTING);
 			glDepthMask(GL_TRUE);
 			glCullFace(GL_BACK);
 			glFrontFace(GL_CCW);
-			glEnable(GL_CULL_FACE);
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
 			glDepthFunc(GL_LEQUAL);
@@ -1207,20 +1215,26 @@ void BulletWorldDraw::renderFrame(void)
 			glDisable(GL_CULL_FACE);
 			renderscene(0);
 		}
+		glDisable(GL_LIGHTING);
+	} else {
+		LOGE("m_dynamicsWorld is null");
+	}
+}
 
+// draring profile text divied from renderFrame
+void BulletWorldDraw::renderProfile(void) {
+
+	if (LIKELY(m_dynamicsWorld)) {
 		int	xOffset = 10;
 		int yStart = 20;
 		int yIncr = 20;
-
 
 		glDisable(GL_LIGHTING);
 		glColor4f(0, 0, 0, 1.f);
 
 		if ((m_debugMode & btIDebugDraw::DBG_NoHelpText)==0) {
 			setOrthographicProjection();
-
 			showProfileInfo(xOffset, yStart, yIncr);
-
 #ifdef USE_QUICKPROF
 			if ( getDebugMode() & btIDebugDraw::DBG_ProfileTimings) {
 				static int counter = 0;
@@ -1236,16 +1250,11 @@ void BulletWorldDraw::renderFrame(void)
 
 			}
 #endif //USE_QUICKPROF
-
 			resetPerspectiveProjection();
 		}
-		glDisable(GL_LIGHTING);
 	} else {
 		LOGE("m_dynamicsWorld is null");
 	}
-
-//	updateCamera();
-
 }
 
 #include "BulletCollision/BroadphaseCollision/btAxisSweep3.h"

@@ -22,7 +22,7 @@ subject to the following restrictions:
 #include "GLBulletWorldSurfaceView.h"
 #include "physicsworld.h"
 
-#define LOCAL_DEBUG 0
+#define LOCAL_DEBUG 1
 
 //**********************************************************************
 //
@@ -46,7 +46,7 @@ static void nativeResize(JNIEnv *env, jobject thiz,
 //	ctrlBlock->bulletWorldDraw->resetFrame();
 	ctrlBlock->bulletWorldDraw->resize(width, height);
 #if LOCAL_DEBUG
-    LOGV("GLBulletWorldSurfaceView#nativeResize:resize w=%d h=%d", width, height);
+    LOGV("GLBulletWorldSurfaceView#nativeResize:resized w=%d h=%d", width, height);
 #endif
 }
 
@@ -78,6 +78,20 @@ static void nativeRender(JNIEnv *env, jobject thiz,
     ctrlBlock->bulletWorldDraw->renderFrame();
 	// optional but useful: debug drawing
     ctrlBlock->dynamicsWorld->debugDrawWorld();
+}
+
+/* Call to render the profile text */
+static void nativeRenderProfile(JNIEnv *env, jobject thiz,
+	ID_CTRLBLOCK id_ctrlblock) {
+
+	PhysicsWorldCtrlBlock *ctrlBlock = reinterpret_cast<PhysicsWorldCtrlBlock *>(id_ctrlblock);
+	if (UNLIKELY(!ctrlBlock)) {
+		LOGE("GLBulletWorldSurfaceView#nativeRenderProfile:bullet control block not found");
+		return;
+	}
+
+	// render frame
+    ctrlBlock->bulletWorldDraw->renderProfile();
 }
 
 /**
@@ -126,6 +140,21 @@ static void nativeSetCameraPosition(JNIEnv *env, jobject thiz,
 		return;
 	}
 	ctrlBlock->bulletWorldDraw->setCameraPosition(x, y, z);
+}
+
+static void nativeSetCameraTargetPosition(JNIEnv *env, jobject thiz,
+	ID_CTRLBLOCK id_ctrlblock,
+	jfloat x, jfloat y, jfloat z) {
+
+#if LOCAL_DEBUG
+	LOGV("GLBulletWorldSurfaceView#nativeSetCameraTargetPosition:");
+#endif
+	PhysicsWorldCtrlBlock *ctrlBlock = reinterpret_cast<PhysicsWorldCtrlBlock *>(id_ctrlblock);
+	if (UNLIKELY(!ctrlBlock)) {
+		LOGE("GLBulletWorldSurfaceView#nativeSetCameraTargetPosition:bullet control block not found");
+		return;
+	}
+	ctrlBlock->bulletWorldDraw->setCameraTargetPosition(x, y, z);
 }
 
 static void nativeSetCameraDistance(JNIEnv *env, jobject thiz,
@@ -377,7 +406,7 @@ static jboolean nativeIsPicking(JNIEnv *env, jobject thiz,
 
 static void nativeSetTracking(JNIEnv *env, jobject thiz,
 	ID_CTRLBLOCK id_ctrlblock,
-	ID_TYPE rigidBodyID,
+	ID_RIGIDBODY rigidBodyID,
 	jfloat minDistance,
 	jfloat maxDistance) {
 
@@ -389,8 +418,8 @@ static void nativeSetTracking(JNIEnv *env, jobject thiz,
 		LOGE("GLBulletWorldSurfaceView#nativeSetTracking:bullet control block not found");
 		return;
 	}
-	if (LIKELY(rigidBodyID)) {
-		btRigidBody *trackingBody = (btRigidBody*)rigidBodyID;
+	btRigidBody *trackingBody = reinterpret_cast<btRigidBody *>(rigidBodyID);
+	if (LIKELY(trackingBody)) {
 		ctrlBlock->bulletWorldDraw->setTracking(
 			trackingBody, minDistance,  maxDistance);
 	} else {
@@ -405,8 +434,10 @@ static JNINativeMethod methods[] = {
 	{"nativeResize", "(JII)V", (void *)nativeResize},
 	{"nativeLostGLContext", "(J)V", (void *)nativeLostGLContext},
 	{"nativeRender", "(J)V", (void *)nativeRender},
+	{"nativeRenderProfile", "(J)V", (void *)nativeRenderProfile},
 	{"nativeMoveCamera", "(JIII)V", (void *)nativeMoveCamera},
 	{"nativeSetCameraPosition", "(JFFF)V", (void *)nativeSetCameraPosition},
+	{"nativeSetCameraTargetPosition", "(JFFF)V", (void *)nativeSetCameraTargetPosition},
 	{"nativeSetCameraDistance", "(JF)V", (void *)nativeSetCameraDistance},
 	{"nativeSetCameraDistanceMinMax", "(JFFF)V", (void *)nativeSetCameraDistanceMinMax},
 	{"nativeSetCameraHeight", "(JF)V", (void *)nativeSetCameraHeight},

@@ -79,6 +79,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
 	private static final int RENDERER_MODIFY_CAMERA_HEIGHT = 0x100;
 	private static final int RENDERER_MODIFY_CAMERA_POSITION = 0x200;
 	private static final int RENDERER_MODIFY_CAMERA_TRACKING = 0x400;
+	private static final int RENDERER_MODIFY_CAMERA_TARGET = 0x800;
 	
 	private static final int SIMULATE_CLIENTRESETSCENE = 0x01;
 	private static final int SIMULATE_SHOOT = 0x02;
@@ -87,7 +88,6 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     private GLBulletWorldSurfaceView.GLBulletWorldSurfaceViewCallback mCallback;
     private GestureDetector mSingleTouchGestureDetector;
     private ScaleGestureDetector mMultiTouchGestureDetector;
-//	private BulletManager mBulletManager;
 	private PhysicsWorld mWorld;
 	private long mPhysicsWorldId;
 	private int mViewWidth, mViewHeight;
@@ -214,7 +214,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
 			mSimulationThread = new SimulationThread();
 			mSimulationThread.start();
 		}
-		mNeedDraw = true;
+//		mNeedDraw = true;
 		super.onResume();		// start GL Renderer thread
     }
 
@@ -447,7 +447,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     		mMoveY = y;
     		mMoveZ = z;
     	}
-    	requestRender();
+//    	requestRender();
     }
     
     /**
@@ -459,7 +459,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     		mRendererFlag |= RENDERER_MODIFY_CAMERA_DISTANCE;
     		mCameraDistance = distance;
     	}
-    	requestRender();
+//    	requestRender();
     }
 
     /**
@@ -515,7 +515,35 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     		mCameraZ = position.z();
     	}
     }
+
+    /**
+     * set camera target position
+     * @param x
+     * @param y
+     * @param z
+     */
+    protected void setCameraTargetPosition(float x, float y, float z) {
+    	synchronized (mSyncObj) {
+    		mRendererFlag |= RENDERER_MODIFY_CAMERA_TARGET;
+    		mTargetX = x;
+    		mTargetY = y;
+    		mTargetZ = z;
+    	}
+    }
     
+    /**
+     * set camera target position
+     * @param position
+     */
+    protected void setCameraTargetPosition(Vector3 position) {
+    	synchronized (mSyncObj) {
+    		mRendererFlag |= RENDERER_MODIFY_CAMERA_TARGET;
+    		mTargetX = position.x();
+    		mTargetY = position.y();
+    		mTargetZ = position.z();
+    	}
+    }
+
     /**
      * set object tracking mode on/off</br>
      * if tracking mode is on(rigidBody not null), you cannot move camera by yourself
@@ -524,7 +552,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
      * @param maxDistance maximum distance between camera and object
      */
     protected void setTracking(RigidBody rigidBody, float minDistance, float maxDistance) {
-    	if (rigidBody != null && rigidBody.getID() > 0) {
+    	if (rigidBody != null && rigidBody.getID() != 0) {
 	    	synchronized (mSyncObj) {
 	    		mRendererFlag |= RENDERER_MODIFY_CAMERA_TRACKING;
 	    		mTrackingBodyID = rigidBody.getID();
@@ -544,7 +572,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     		mRendererFlag |= RENDERER_MODIFY_TEXTURING;
         	mIsTexturing = enable;
     	}
-    	requestRender();    	
+//    	requestRender();
     }
     
     /**
@@ -556,7 +584,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     		mRendererFlag |= RENDERER_MODIFY_SHADOWS;
         	mDrawShadows = drawShadows;
     	}
-    	requestRender();    	
+//    	requestRender();
     }
 
     /**
@@ -568,7 +596,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     		mRendererFlag |= RENDERER_MODIFY_CLUSTERS;
         	mDrawClusters = drawClusters;
     	}
-    	requestRender();    	
+//    	requestRender();    	
     }
     
     /**
@@ -580,7 +608,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     		mRendererFlag |= RENDERER_MODIFY_DEBUGMODE_TOGGLE;
     		mDebugMode = mode;
     	}
-    	requestRender();    	
+//    	requestRender();
     }
 
     /**
@@ -592,7 +620,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     		mRendererFlag |= RENDERER_MODIFY_DEBUGMODE_SET;
     		mDebugMode = mode;
     	}
-    	requestRender();    	
+//    	requestRender();   	
     }
     
     /**
@@ -769,8 +797,11 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     private static final native void nativeResize(long physicsWorldId, int w, int h);
     private static final native void nativeLostGLContext(long physicsWorldId);
     private static final native void nativeRender(long physicsWorldId);
+    private static final native void nativeRenderProfile(long physicsWorldId);
     private static final native void nativeMoveCamera(long physicsWorldId, int x, int y, int z);
     private static final native void nativeSetCameraPosition(long physicsWorldId, float x, float y, float z);
+    private static final native void nativeSetCameraTargetPosition(long physicsWorldId, float x, float y, float z);
+    private static final native void nativeSetCameraTargetPositionVec(long physicsWorldId, long id_vec_pos);
     private static final native void nativeSetCameraDistance(long physicsWorldId, float distance);
     private static final native void nativeSetCameraDistanceMinMax(long physicsWorldId, float distance, float min_distance, float max_distance);
     private static final native void nativeSetCameraHeight(long physicsWorldId, float height);
@@ -818,33 +849,41 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
 
     	@Override
         public void onDrawFrame(GL10 gl) {
+    		int localRendererFlag = 0;
     		synchronized (mSyncObj) {
-    			if (mIsEnabled) {
-    				// these methods affect to the current rendering
-	    			if ((mRendererFlag & RENDERER_MODIFY_CAMERA_MOVE) != 0)
-	    				nativeMoveCamera(mPhysicsWorldId, mMoveX, mMoveY, mMoveZ);
-	    			if ((mRendererFlag & RENDERER_MODIFY_CAMERA_DISTANCE) != 0)
-	    				nativeSetCameraDistance(mPhysicsWorldId, mCameraDistance); 
-	    			if ((mRendererFlag & RENDERER_MODIFY_CAMERA_DISTANCE3) != 0)
-	    				nativeSetCameraDistanceMinMax(mPhysicsWorldId, mCameraDistance, mCameraDistanceMin, mCameraDistanceMax); 
-	    			if ((mRendererFlag & RENDERER_MODIFY_CAMERA_HEIGHT) != 0)
-	    				nativeSetCameraHeight(mPhysicsWorldId, mCameraHeight);
-	    			if ((mRendererFlag & RENDERER_MODIFY_CAMERA_POSITION) != 0)
-	    				nativeSetCameraPosition(mPhysicsWorldId, mCameraX, mCameraY, mCameraZ);
-	    			if ((mRendererFlag & RENDERER_MODIFY_CAMERA_TRACKING) != 0)
-		    			nativeSetTracking(mPhysicsWorldId, mTrackingBodyID, mCameraDistanceMin, mCameraDistanceMax);
-	    			
-	    			if ((mRendererFlag & RENDERER_MODIFY_TEXTURING) != 0)
-	    				nativeSetTexturing(mPhysicsWorldId, mIsTexturing);
-	    			if ((mRendererFlag & RENDERER_MODIFY_SHADOWS) != 0)
-	    				nativeSetDrawShadows(mPhysicsWorldId, mDrawShadows);
-	    			if ((mRendererFlag & RENDERER_MODIFY_CLUSTERS) != 0)
-	    				nativeSetDrawClusters(mPhysicsWorldId, mDrawClusters);
-	    			if ((mRendererFlag & RENDERER_MODIFY_DEBUGMODE_TOGGLE) != 0)
-	    				nativeToggleDebugMode(mPhysicsWorldId, mDebugMode);
-	    			if ((mRendererFlag & RENDERER_MODIFY_DEBUGMODE_SET) != 0)
-	    				nativeSetDebugMode(mPhysicsWorldId, mDebugMode);
-	    			mRendererFlag = 0;
+    			if (mNeedDraw && mIsEnabled) {
+    				localRendererFlag = mRendererFlag;
+    		    	mRendererFlag = 0;
+    			}
+    		}
+    		// these methods affect to the current rendering
+    		if ((localRendererFlag & RENDERER_MODIFY_CAMERA_MOVE) != 0)
+    			nativeMoveCamera(mPhysicsWorldId, mMoveX, mMoveY, mMoveZ);
+    		if ((localRendererFlag & RENDERER_MODIFY_CAMERA_DISTANCE) != 0)
+    			nativeSetCameraDistance(mPhysicsWorldId, mCameraDistance); 
+    		if ((localRendererFlag & RENDERER_MODIFY_CAMERA_DISTANCE3) != 0)
+    			nativeSetCameraDistanceMinMax(mPhysicsWorldId, mCameraDistance, mCameraDistanceMin, mCameraDistanceMax); 
+    		if ((localRendererFlag & RENDERER_MODIFY_CAMERA_HEIGHT) != 0)
+    			nativeSetCameraHeight(mPhysicsWorldId, mCameraHeight);
+    		if ((localRendererFlag & RENDERER_MODIFY_CAMERA_POSITION) != 0)
+    			nativeSetCameraPosition(mPhysicsWorldId, mCameraX, mCameraY, mCameraZ);
+    		if ((localRendererFlag & RENDERER_MODIFY_CAMERA_TRACKING) != 0)
+	    		nativeSetTracking(mPhysicsWorldId, mTrackingBodyID, mCameraDistanceMin, mCameraDistanceMax);
+    		if ((localRendererFlag & RENDERER_MODIFY_CAMERA_TARGET) != 0)
+    			nativeSetCameraTargetPosition(mPhysicsWorldId, mTargetX, mTargetY, mTargetZ);
+    			
+    		if ((localRendererFlag & RENDERER_MODIFY_TEXTURING) != 0)
+    			nativeSetTexturing(mPhysicsWorldId, mIsTexturing);
+    		if ((localRendererFlag & RENDERER_MODIFY_SHADOWS) != 0)
+    			nativeSetDrawShadows(mPhysicsWorldId, mDrawShadows);
+    		if ((localRendererFlag & RENDERER_MODIFY_CLUSTERS) != 0)
+    			nativeSetDrawClusters(mPhysicsWorldId, mDrawClusters);
+    		if ((localRendererFlag & RENDERER_MODIFY_DEBUGMODE_TOGGLE) != 0)
+    			nativeToggleDebugMode(mPhysicsWorldId, mDebugMode);
+    		if ((localRendererFlag & RENDERER_MODIFY_DEBUGMODE_SET) != 0)
+    			nativeSetDebugMode(mPhysicsWorldId, mDebugMode);
+    		synchronized (mSyncObj) {
+    			if (mNeedDraw && mIsEnabled) {
 	    			// rendering
 	    			nativeRender(mPhysicsWorldId);
 	    			if (mCallback != null) {
@@ -854,6 +893,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
 	    					Log.w("GLBulletWorldRenderer#onDrawFrame:renderFrame:", e);
 	    				}
 	    			}
+	    			nativeRenderProfile(mPhysicsWorldId);
     			}
     			mNeedDraw = false;
     			mSyncObj.notifyAll();
@@ -866,6 +906,7 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
      */
     private final class SimulationThread extends Thread {
     	private boolean isRunning;
+    	private int localSimulateFlag;
     	@Override
     	public void run() {
     		isRunning = true;
@@ -876,16 +917,17 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
     			}
     			if (mIsActive) {	// only execute when active
             		synchronized (mSyncObj) {
-            			// these methods do not affect to the calculated simulation result
-            			// affect to the next calculation 
-	        			if ((mSimulateFlag & SIMULATE_SET_SHOOTSPEED) != 0)
-	        				nativeSetShootSpeed(mPhysicsWorldId, mShootSpeed);
-	        			if ((mSimulateFlag & SIMULATE_SHOOT) != 0)
-	        				nativeShootBox(mPhysicsWorldId, mShootX, mShootY);
-	        			if ((mSimulateFlag & SIMULATE_CLIENTRESETSCENE) != 0)
-	        				nativeClientResetScene(mPhysicsWorldId);
-	        			mSimulateFlag = 0;
+            			localSimulateFlag = mSimulateFlag;
+            			mSimulateFlag = 0;
             		}
+            		// these methods do not affect to the calculated simulation result
+            		// affect to the next calculation 
+	        		if ((localSimulateFlag & SIMULATE_SET_SHOOTSPEED) != 0)
+	        			nativeSetShootSpeed(mPhysicsWorldId, mShootSpeed);
+	        		if ((localSimulateFlag & SIMULATE_SHOOT) != 0)
+	        			nativeShootBox(mPhysicsWorldId, mShootX, mShootY);
+	        		if ((localSimulateFlag & SIMULATE_CLIENTRESETSCENE) != 0)
+	        			nativeClientResetScene(mPhysicsWorldId);
                		synchronized (mSyncObj) {
                			if (mNeedDraw) {
                    			// Previous drawing is not finished / still progress
@@ -900,8 +942,8 @@ public class GLBulletWorldSurfaceView extends GLSurfaceView {
    	        			else				 mWorld.doSimulation(mExecTime, mSubSteps);
    	        			// request to render
             			mNeedDraw = true;
-	    				GLBulletWorldSurfaceView.this.requestRender();
-            		}
+               		}
+	    			GLBulletWorldSurfaceView.this.requestRender();
     			} else {
             		synchronized (mSyncObj) {
 	    				try {				// wait when not active

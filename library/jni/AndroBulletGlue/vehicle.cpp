@@ -285,7 +285,7 @@ static void nativeRender(
 		return;
 	}
 
-	ctrlBlock->bulletWorldDraw->updateCamera();
+//	ctrlBlock->bulletWorldDraw->updateCamera();
 
 	btScalar m[16];
 	btVector3 wheelColor(1, 0, 0);	// XXX the wheel color is fixed red now.

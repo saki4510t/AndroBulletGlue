@@ -26,8 +26,6 @@ subject to the following restrictions:
 #include "utils.h"
 #include "mygl.h"
 
-#include <stdio.h> //printf debugging
-
 GLDebugDrawer::GLDebugDrawer()
   :m_debugMode(0) {
 
