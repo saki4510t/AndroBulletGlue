@@ -22,7 +22,7 @@ subject to the following restrictions:
 #include "GLBulletWorldSurfaceView.h"
 #include "physicsworld.h"
 
-#define LOCAL_DEBUG 1
+#define LOCAL_DEBUG 0
 
 //**********************************************************************
 //
