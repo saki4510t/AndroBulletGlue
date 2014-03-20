@@ -1,0 +1,3 @@
+# view AndroidManifest.xml #generated:36
+-keep class com.serenegiant.androbulletgluedemo2.MainActivity { <init>(...); }
+
